@@ -173,10 +173,17 @@ void setup()
 
     // connect to wifi
     WiFi.begin("your wifi", "password");
+    int timeoutCounter = 0;
     while (WiFi.status() != WL_CONNECTED)
     {
         delay(500);
         Serial.print(".");
+        timeoutCounter++;
+        if (timeoutCounter == 120) { // 60 sec
+            //ESP.restart();
+            esp_sleep_enable_ext0_wakeup(FIRST_BTN_PIN, 0);
+            ESP.deepSleep(1e6 * 120); //120 sec
+        }
     }
     Serial.println("");
     Serial.println("WiFi connected");
@@ -188,6 +195,7 @@ void setup()
 
     // get the screen image
     HTTPClient http;
+    http.useHTTP10();
     http.begin("http://www.vedelaar.nl/helium.php");
     http.setTimeout(60000);
     Serial.print("[HTTP] GET...\n");

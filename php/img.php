@@ -1,4 +1,5 @@
 <?php
+// https://knowledge-center.solaredge.com/sites/kc/files/se_monitoring_api.pdf
 
 class curlclass
 {
@@ -182,21 +183,66 @@ class Display
   }
 
   public function draw() {
-    $from = date("Y-m-d", strtotime("7 days ago"));
+    //$from = date("Y-m-d", strtotime("7 days ago"));
+    $from = date("Y-m-d", strtotime("1 year ago + 1 day")); // 10-1-2022 tot en met 09-1-2022
     $to = date("Y-m-d");
     $se = $this->solarEdge->getSiteEnergy($from, $to, 'DAY');
     $vals = $se['energy']['values'];
-    //print_r($vals);
 
-    imagettftext($this->gd, 20, 0, 650, 50, $this->white, $this->font, 'Today:');
-    $text = ($vals[count($vals)-1]['value']/1000)."\nkWh";
+    // BARS
+    $vals_bak = $vals;
+    $this->drawBars(array_splice($vals_bak, -8));
+
+    // TODAY
+    //imagettftext($this->gd, 20, 0, 650, 50, $this->white, $this->font, 'Today:');
+    imagettftext($this->gd, 25, 0, 650, 60, $this->white, $this->font, 'Vandaag:');
+    $text = round($vals[count($vals)-1]['value']/1000,2);
+    //if ($text > 10)
+    //  $text = round($text, 2);
     imagettftext($this->gd, 80, 0, 650, 150, $this->white, $this->font, $text);
+    imagettftext($this->gd, 40, 0, 780, 200, $this->white, $this->font, "kWh");
 
-    $this->drawBars($vals);
-
+    // LAST UPDATE
     $sov = $this->solarEdge->getSiteOverview();
-    imagettftext($this->gd, 20, 0, 650, $this->canvas_height-60, $this->white, $this->font, 'Last updated on:');
-    imagettftext($this->gd, 20, 0, 650, $this->canvas_height-30, $this->white, $this->font, $sov['overview']['lastUpdateTime']);
+    imagettftext($this->gd, 15, 0, 650, $this->canvas_height-60, $this->white, $this->font, 'laatst geüpdatet:');
+    //imagettftext($this->gd, 20, 0, 650, $this->canvas_height-60, $this->white, $this->font, 'Last updated on:');
+    imagettftext($this->gd, 22, 0, 650, $this->canvas_height-30, $this->white, $this->font, $sov['overview']['lastUpdateTime']);
+
+    // THIS YEAR
+    $text = round($sov['overview']['lastYearData']['energy']/1000,2);
+    imagettftext($this->gd, 15, 0, 650, 250, $this->white, $this->font, "Dit kalenderjaar:");
+    imagettftext($this->gd, 30, 0, 650, 285, $this->white, $this->font, $text);
+    $box1 = $this->calculateTextBox($text, $this->font, 30,0);
+
+    // LAST 365 DAYS
+    $last365days = array_reduce($se['energy']['values'], function($c, $i){ return $c + $i['value']; });
+    $text = round($last365days/1000,2);
+    imagettftext($this->gd, 15, 0, 650, 320, $this->white, $this->font, "Afgelopen 365 dagen:");
+    imagettftext($this->gd, 30, 0, 650, 355, $this->white, $this->font, $text);
+    $box2 = $this->calculateTextBox($text, $this->font, 30,0);
+
+    // THIS CONTRACT YEAR
+    $contractdate = strtotime("aug 13 00:00:00");
+    if ($contractdate > time())
+      $contractdate = strtotime('-1 year', $contractdate);
+
+    $thiscontract = array_reduce($se['energy']['values'], function($c, $i) use ($contractdate){
+        if (strtotime($i['date']) >= $contractdate) {
+          return $c + $i['value'];
+        }
+        return $c;
+      });
+
+    $text = round($thiscontract/1000,2);
+    imagettftext($this->gd, 15, 0, 650, 390, $this->white, $this->font, "Dit contractjaar:");
+    imagettftext($this->gd, 30, 0, 650, 425, $this->white, $this->font, $text);
+    $box3 = $this->calculateTextBox($text, $this->font, 30,0);
+
+    // KWH LABELS
+    $maxbox = max($box1['width'], $box2['width'], $box3['width']);
+    imagettftext($this->gd, 15, 0, 650 + $maxbox + 10, 275, $this->white, $this->font, "kWh");
+    imagettftext($this->gd, 15, 0, 650 + $maxbox + 10, 345, $this->white, $this->font, "kWh");
+    imagettftext($this->gd, 15, 0, 650 + $maxbox + 10, 415, $this->white, $this->font, "kWh");
   }
 
   public function imagettftextcentered($gd, $size, $angle, $x_center, $y_center, $color, $font, $text, $options = []){
